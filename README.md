@@ -1,73 +1,86 @@
-# React + TypeScript + Vite
+# Price Change Simulator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React + TypeScript application for simulating the impact of price changes on ARR (Annual Recurring Revenue) and churn rates. The simulator uses historical price change events to predict churn and revenue impacts.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Merchant-Scoped Simulations**: Always simulates within a single merchant context
+- **Global Benchmark Blending**: Optional blending of merchant-specific and global benchmark data with evidence-based weighting
+- **Price Shock Adjustments**: Non-linear adjustments for extreme price increases (>25%) to prevent unrealistic retention assumptions
+- **Extreme Change Warnings**: Modal warnings for extreme price changes (≥50% increase or ≤-30% decrease) with user acknowledgment
+- **Data Visualization**: Interactive charts showing ARR impact breakdown and churn comparisons
+- **Evidence-Based Predictions**: Uses weighted historical events to predict churn lift
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **React 19** with TypeScript
+- **Vite** for build tooling
+- **Tailwind CSS** for styling
+- **Recharts** for data visualization
+- **React Router** for navigation
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prerequisites
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js 18+ and npm
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+### Build
+
+```bash
+npm run build
+```
+
+### Preview Production Build
+
+```bash
+npm run preview
+```
+
+## Deployment to Vercel
+
+This project is configured for easy deployment to Vercel:
+
+1. **Connect Repository**: Import the GitHub repository in your Vercel dashboard
+2. **Build Settings**: Vercel will auto-detect Vite settings:
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+   - **Install Command**: `npm install`
+3. **Deploy**: Click deploy and Vercel will handle the rest
+
+### Environment Variables
+
+No environment variables are required for this project.
+
+## Project Structure
+
+```
+src/
+  components/     # Reusable UI components
+  data/            # Data generation and types
+  lib/             # Core simulation logic and utilities
+  pages/           # Page components (Simulate, Data, NotFound)
+```
+
+## Key Components
+
+- **SimulatePage**: Main simulation interface with inputs and results
+- **Modal**: Reusable modal component for warnings
+- **simulate.ts**: Core simulation engine with price shock adjustments
+- **generate.ts**: Sample data generation for testing
+
+## License
+
+Private project

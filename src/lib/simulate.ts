@@ -6,7 +6,6 @@ import type { PriceChangeEvent } from '../data/types';
 const SAFE_INCREASE_PCT = 0.25;       // price increases up to +25% are "normal"; no shock
 const SHOCK_RAMP_PCT = 0.15;          // how quickly shock ramps after threshold
 const MAX_CHURN_90D = 0.90;            // absolute ceiling for 90-day churn under extreme shock
-const MIN_RETENTION_90D = 0.10;        // equivalent: 1 - MAX_CHURN_90D
 
 // Smoothstep function for smooth interpolation (0 at x=0, 1 at x=1)
 function smoothstep(x: number): number {

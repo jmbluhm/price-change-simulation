@@ -1,0 +1,23 @@
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { TopNav } from './components/TopNav';
+import { DataPage } from './pages/DataPage';
+import { SimulatePage } from './pages/SimulatePage';
+import { NotFound } from './pages/NotFound';
+
+function App() {
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <TopNav />
+      <main className="pb-12">
+        <Routes>
+          <Route path="/" element={<Navigate to="/simulate" replace />} />
+          <Route path="/data" element={<DataPage />} />
+          <Route path="/simulate" element={<SimulatePage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+export default App;

@@ -100,13 +100,21 @@ export function SimulatePage() {
 
   const selectedPlan = dataset.plans.find(p => p.id === planId);
 
-  // Transform optimization data to include churn impact
+  // Transform optimization data to include churn impact, relative to current price baseline
   const chartDataWithChurnImpact = useMemo(() => {
     if (!priceOptimization || !selectedPlan) return [];
     const baselineChurn = selectedPlan.baselineChurn90d;
+    
+    // Get baseline values at current price (should be 0, but calculate for accuracy)
+    const currentPriceBaselineARRImpact = priceOptimization.currentARRImpact;
+    const currentPriceBaselineChurnImpact = priceOptimization.currentChurn90d - baselineChurn;
+    
     return priceOptimization.dataPoints.map(point => ({
       ...point,
-      churnImpact: point.expectedChurn90d - baselineChurn,
+      // Make ARR impact relative to current price (subtract baseline)
+      arrImpact: point.arrImpact - currentPriceBaselineARRImpact,
+      // Make churn impact relative to current price (subtract baseline)
+      churnImpact: (point.expectedChurn90d - baselineChurn) - currentPriceBaselineChurnImpact,
     }));
   }, [priceOptimization, selectedPlan]);
 

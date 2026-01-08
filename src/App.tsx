@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { TopNav } from './components/TopNav';
+import { HomePage } from './pages/HomePage';
 import { DataPage } from './pages/DataPage';
 import { SimulatePage } from './pages/SimulatePage';
 import { ChurnSimulationPage } from './pages/ChurnSimulationPage';
@@ -11,7 +12,7 @@ function App() {
       <TopNav />
       <main className="pb-12">
         <Routes>
-          <Route path="/" element={<Navigate to="/simulate" replace />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/data" element={<DataPage />} />
           <Route path="/simulate" element={<SimulatePage />} />
           <Route path="/churn" element={<ChurnSimulationPage />} />

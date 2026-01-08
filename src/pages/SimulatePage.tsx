@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Cell, LineChart, Line, ReferenceLine, ReferenceArea } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Cell, LineChart, Line, ReferenceLine } from 'recharts';
 import { dataset, TEST_MERCHANT_ID } from '../data/sampleData';
 import { simulate, type SimulationResult, findOptimalPrice, type PriceOptimizationResult } from '../lib/simulate';
 import { Card } from '../components/ui/Card';

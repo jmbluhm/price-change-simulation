@@ -25,7 +25,7 @@ const OptimizationTooltip = ({ active, payload, label }: OptimizationTooltipProp
   if (active && payload && payload.length > 0 && label !== undefined) {
     const price = label;
     const arrImpact = payload.find((p) => p.dataKey === 'arrImpact')?.value as number | undefined;
-    const expectedChurn = payload.find((p) => p.dataKey === 'expectedChurn90d')?.value as number | undefined;
+    const churnImpact = payload.find((p) => p.dataKey === 'churnImpact')?.value as number | undefined;
 
     return (
       <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3">
@@ -42,9 +42,9 @@ const OptimizationTooltip = ({ active, payload, label }: OptimizationTooltipProp
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <span className="text-sm text-slate-600">Expected Churn:</span>
+            <span className="text-sm text-slate-600">Churn Impact:</span>
             <span className="text-sm font-semibold text-slate-900">
-              {expectedChurn !== undefined && expectedChurn !== null ? formatPercent(expectedChurn) : '0%'}
+              {churnImpact !== undefined && churnImpact !== null ? formatPercentChange(churnImpact) : '0%'}
             </span>
           </div>
         </div>
@@ -99,6 +99,16 @@ export function SimulatePage() {
   }, [availablePlans, planId]);
 
   const selectedPlan = dataset.plans.find(p => p.id === planId);
+
+  // Transform optimization data to include churn impact
+  const chartDataWithChurnImpact = useMemo(() => {
+    if (!priceOptimization || !selectedPlan) return [];
+    const baselineChurn = selectedPlan.baselineChurn90d;
+    return priceOptimization.dataPoints.map(point => ({
+      ...point,
+      churnImpact: point.expectedChurn90d - baselineChurn,
+    }));
+  }, [priceOptimization, selectedPlan]);
 
   const runSimulation = () => {
     if (!planId || !newPrice || !selectedPlan) return;
@@ -422,7 +432,7 @@ export function SimulatePage() {
               </div>
             </Card>
           )}
-          {result && !isCalculatingOptimal && priceOptimization && priceOptimization.dataPoints.length > 0 && (
+          {result && !isCalculatingOptimal && priceOptimization && chartDataWithChurnImpact.length > 0 && selectedPlan && (
             <Card title="Price Optimization for Churn Reduction">
               <div className="mb-6 pt-2 space-y-4">
                 {/* Churn-Optimal Price */}
@@ -478,7 +488,7 @@ export function SimulatePage() {
               </div>
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart
-                  data={priceOptimization.dataPoints}
+                  data={chartDataWithChurnImpact}
                   margin={{ top: 40, right: 50, left: 60, bottom: 60 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -499,10 +509,10 @@ export function SimulatePage() {
                   <YAxis 
                     yAxisId="churn"
                     orientation="right"
-                    tickFormatter={(value) => formatPercent(value)} 
+                    tickFormatter={(value) => formatPercentChange(value)} 
                     tick={{ fill: '#64748b', fontSize: 12 }}
                     axisLine={{ stroke: '#cbd5e1' }}
-                    label={{ value: 'Expected Churn (90d)', angle: 90, position: 'right', offset: 15, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+                    label={{ value: 'Churn Impact', angle: 90, position: 'right', offset: 15, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
                   />
                   <Tooltip content={<OptimizationTooltip />} />
                   <Line 
@@ -518,12 +528,12 @@ export function SimulatePage() {
                   <Line 
                     yAxisId="churn"
                     type="monotone" 
-                    dataKey="expectedChurn90d" 
+                    dataKey="churnImpact" 
                     stroke="#ef4444" 
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6, fill: '#ef4444' }}
-                    name="Expected Churn"
+                    name="Churn Impact"
                   />
                   <Legend 
                     wrapperStyle={{ paddingTop: '20px' }}
@@ -558,7 +568,7 @@ export function SimulatePage() {
                 </LineChart>
               </ResponsiveContainer>
               <div className="mt-6 pt-4 text-xs text-slate-500 border-t border-slate-200">
-                This chart shows ARR impact (blue) and expected churn (red) across different price points. The churn-optimal price minimizes churn while maintaining reasonable ARR (within 10% loss). The ARR-optimal price maximizes revenue growth.
+                This chart shows ARR impact (blue) and churn impact (red) across different price points. The churn-optimal price minimizes churn while maintaining reasonable ARR (within 10% loss). The ARR-optimal price maximizes revenue growth.
               </div>
             </Card>
           )}

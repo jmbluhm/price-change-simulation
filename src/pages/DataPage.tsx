@@ -13,13 +13,16 @@ import { dataset } from '../data/sampleData';
 import { Card } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 import { formatCurrency, formatPercent, formatPercentChange, formatDate, formatNumber } from '../lib/utils';
-import type { Merchant, Plan, PriceChangeEvent } from '../data/types';
+import type { Merchant, Plan, PriceChangeEvent, CancellationEvent, PaymentFailureEvent, PauseEvent } from '../data/types';
 
 type Scope = 'global' | 'merchant';
 
-const columnHelper = createColumnHelper<Merchant>();
-const planColumnHelper = createColumnHelper<Plan>();
-const eventColumnHelper = createColumnHelper<PriceChangeEvent>();
+  const columnHelper = createColumnHelper<Merchant>();
+  const planColumnHelper = createColumnHelper<Plan>();
+  const eventColumnHelper = createColumnHelper<PriceChangeEvent>();
+  const cancellationColumnHelper = createColumnHelper<CancellationEvent>();
+  const paymentColumnHelper = createColumnHelper<PaymentFailureEvent>();
+  const pauseColumnHelper = createColumnHelper<PauseEvent>();
 
 export function DataPage() {
   const [scope, setScope] = useState<Scope>('global');
@@ -27,9 +30,15 @@ export function DataPage() {
   const [merchantSorting, setMerchantSorting] = useState<SortingState>([]);
   const [planSorting, setPlanSorting] = useState<SortingState>([]);
   const [eventSorting, setEventSorting] = useState<SortingState>([]);
+  const [cancellationSorting, setCancellationSorting] = useState<SortingState>([]);
+  const [paymentSorting, setPaymentSorting] = useState<SortingState>([]);
+  const [pauseSorting, setPauseSorting] = useState<SortingState>([]);
   const [merchantFilters, setMerchantFilters] = useState<ColumnFiltersState>([]);
   const [planFilters, setPlanFilters] = useState<ColumnFiltersState>([]);
   const [eventFilters, setEventFilters] = useState<ColumnFiltersState>([]);
+  const [cancellationFilters, setCancellationFilters] = useState<ColumnFiltersState>([]);
+  const [paymentFilters, setPaymentFilters] = useState<ColumnFiltersState>([]);
+  const [pauseFilters, setPauseFilters] = useState<ColumnFiltersState>([]);
 
   // Filter data based on scope
   const filteredMerchants = useMemo(() => {
@@ -51,6 +60,27 @@ export function DataPage() {
       return dataset.events.filter(e => e.merchantId === selectedMerchantId);
     }
     return dataset.events;
+  }, [scope, selectedMerchantId]);
+
+  const filteredCancellationEvents = useMemo(() => {
+    if (scope === 'merchant') {
+      return dataset.cancellationEvents.filter(e => e.merchantId === selectedMerchantId);
+    }
+    return dataset.cancellationEvents;
+  }, [scope, selectedMerchantId]);
+
+  const filteredPaymentEvents = useMemo(() => {
+    if (scope === 'merchant') {
+      return dataset.paymentFailureEvents.filter(e => e.merchantId === selectedMerchantId);
+    }
+    return dataset.paymentFailureEvents;
+  }, [scope, selectedMerchantId]);
+
+  const filteredPauseEvents = useMemo(() => {
+    if (scope === 'merchant') {
+      return dataset.pauseEvents.filter(e => e.merchantId === selectedMerchantId);
+    }
+    return dataset.pauseEvents;
   }, [scope, selectedMerchantId]);
 
   // Merchant columns
@@ -167,6 +197,151 @@ export function DataPage() {
     []
   );
 
+  // Cancellation event columns
+  const cancellationColumns = useMemo(
+    () => [
+      cancellationColumnHelper.accessor('id', {
+        header: 'ID',
+        cell: info => info.getValue(),
+      }),
+      cancellationColumnHelper.accessor('merchantId', {
+        header: 'Merchant',
+        cell: info => {
+          const merchant = dataset.merchants.find(m => m.id === info.getValue());
+          return merchant?.name || info.getValue();
+        },
+      }),
+      cancellationColumnHelper.accessor('planId', {
+        header: 'Plan',
+        cell: info => {
+          const plan = dataset.plans.find(p => p.id === info.getValue());
+          return plan?.name || info.getValue();
+        },
+      }),
+      cancellationColumnHelper.accessor('eventDate', {
+        header: 'Date',
+        cell: info => formatDate(info.getValue()),
+      }),
+      cancellationColumnHelper.accessor('interventionType', {
+        header: 'Intervention',
+        cell: info => info.getValue(),
+      }),
+      cancellationColumnHelper.accessor('incentiveStrength', {
+        header: 'Incentive',
+        cell: info => info.getValue() || '-',
+      }),
+      cancellationColumnHelper.accessor('outcome', {
+        header: 'Outcome',
+        cell: info => info.getValue(),
+      }),
+      cancellationColumnHelper.accessor('postEventLifetimeDays', {
+        header: 'Lifetime Days',
+        cell: info => {
+          const value = info.getValue();
+          return value !== undefined ? formatNumber(value) : '-';
+        },
+      }),
+    ],
+    []
+  );
+
+  // Payment failure event columns
+  const paymentColumns = useMemo(
+    () => [
+      paymentColumnHelper.accessor('id', {
+        header: 'ID',
+        cell: info => info.getValue(),
+      }),
+      paymentColumnHelper.accessor('merchantId', {
+        header: 'Merchant',
+        cell: info => {
+          const merchant = dataset.merchants.find(m => m.id === info.getValue());
+          return merchant?.name || info.getValue();
+        },
+      }),
+      paymentColumnHelper.accessor('planId', {
+        header: 'Plan',
+        cell: info => {
+          const plan = dataset.plans.find(p => p.id === info.getValue());
+          return plan?.name || info.getValue();
+        },
+      }),
+      paymentColumnHelper.accessor('eventDate', {
+        header: 'Date',
+        cell: info => formatDate(info.getValue()),
+      }),
+      paymentColumnHelper.accessor('retries', {
+        header: 'Retries',
+        cell: info => info.getValue(),
+      }),
+      paymentColumnHelper.accessor('retryWindowDays', {
+        header: 'Window (Days)',
+        cell: info => info.getValue(),
+      }),
+      paymentColumnHelper.accessor('fallbackEnabled', {
+        header: 'Fallback',
+        cell: info => info.getValue() ? 'Yes' : 'No',
+      }),
+      paymentColumnHelper.accessor('recovered', {
+        header: 'Recovered',
+        cell: info => info.getValue() ? 'Yes' : 'No',
+      }),
+      paymentColumnHelper.accessor('recoveryDays', {
+        header: 'Recovery Days',
+        cell: info => {
+          const value = info.getValue();
+          return value !== undefined ? formatNumber(value) : '-';
+        },
+      }),
+    ],
+    []
+  );
+
+  // Pause event columns
+  const pauseColumns = useMemo(
+    () => [
+      pauseColumnHelper.accessor('id', {
+        header: 'ID',
+        cell: info => info.getValue(),
+      }),
+      pauseColumnHelper.accessor('merchantId', {
+        header: 'Merchant',
+        cell: info => {
+          const merchant = dataset.merchants.find(m => m.id === info.getValue());
+          return merchant?.name || info.getValue();
+        },
+      }),
+      pauseColumnHelper.accessor('planId', {
+        header: 'Plan',
+        cell: info => {
+          const plan = dataset.plans.find(p => p.id === info.getValue());
+          return plan?.name || info.getValue();
+        },
+      }),
+      pauseColumnHelper.accessor('eventDate', {
+        header: 'Date',
+        cell: info => formatDate(info.getValue()),
+      }),
+      pauseColumnHelper.accessor('pauseEnabled', {
+        header: 'Pause Enabled',
+        cell: info => info.getValue() ? 'Yes' : 'No',
+      }),
+      pauseColumnHelper.accessor('pauseCycles', {
+        header: 'Cycles',
+        cell: info => info.getValue(),
+      }),
+      pauseColumnHelper.accessor('resumed', {
+        header: 'Resumed',
+        cell: info => info.getValue() ? 'Yes' : 'No',
+      }),
+      pauseColumnHelper.accessor('churnedWithin90d', {
+        header: 'Churned (90d)',
+        cell: info => info.getValue() === undefined ? '-' : (info.getValue() ? 'Yes' : 'No'),
+      }),
+    ],
+    []
+  );
+
   const merchantTable = useReactTable({
     data: filteredMerchants,
     columns: merchantColumns,
@@ -207,6 +382,48 @@ export function DataPage() {
     },
     onSortingChange: setEventSorting,
     onColumnFiltersChange: setEventFilters,
+  });
+
+  const cancellationTable = useReactTable({
+    data: filteredCancellationEvents,
+    columns: cancellationColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    state: {
+      sorting: cancellationSorting,
+      columnFilters: cancellationFilters,
+    },
+    onSortingChange: setCancellationSorting,
+    onColumnFiltersChange: setCancellationFilters,
+  });
+
+  const paymentTable = useReactTable({
+    data: filteredPaymentEvents,
+    columns: paymentColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    state: {
+      sorting: paymentSorting,
+      columnFilters: paymentFilters,
+    },
+    onSortingChange: setPaymentSorting,
+    onColumnFiltersChange: setPaymentFilters,
+  });
+
+  const pauseTable = useReactTable({
+    data: filteredPauseEvents,
+    columns: pauseColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    state: {
+      sorting: pauseSorting,
+      columnFilters: pauseFilters,
+    },
+    onSortingChange: setPauseSorting,
+    onColumnFiltersChange: setPauseFilters,
   });
 
   return (
@@ -259,7 +476,7 @@ export function DataPage() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-5 mb-6">
         <Card>
           <div className="text-sm text-slate-600 font-medium mb-1.5">Total Merchants</div>
           <div className="text-3xl font-bold text-slate-900 tracking-tight">{filteredMerchants.length}</div>
@@ -269,8 +486,20 @@ export function DataPage() {
           <div className="text-3xl font-bold text-slate-900 tracking-tight">{filteredPlans.length}</div>
         </Card>
         <Card>
-          <div className="text-sm text-slate-600 font-medium mb-1.5">Total Events</div>
+          <div className="text-sm text-slate-600 font-medium mb-1.5">Price Events</div>
           <div className="text-3xl font-bold text-slate-900 tracking-tight">{filteredEvents.length}</div>
+        </Card>
+        <Card>
+          <div className="text-sm text-slate-600 font-medium mb-1.5">Cancellation Events</div>
+          <div className="text-3xl font-bold text-slate-900 tracking-tight">{filteredCancellationEvents.length}</div>
+        </Card>
+        <Card>
+          <div className="text-sm text-slate-600 font-medium mb-1.5">Payment Events</div>
+          <div className="text-3xl font-bold text-slate-900 tracking-tight">{filteredPaymentEvents.length}</div>
+        </Card>
+        <Card>
+          <div className="text-sm text-slate-600 font-medium mb-1.5">Pause Events</div>
+          <div className="text-3xl font-bold text-slate-900 tracking-tight">{filteredPauseEvents.length}</div>
         </Card>
       </div>
 
@@ -357,7 +586,7 @@ export function DataPage() {
       </Card>
 
       {/* Events Table */}
-      <Card title="Price Change Events">
+      <Card title="Price Change Events" className="mb-6">
         <div className="overflow-x-auto -mx-6 px-6">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
@@ -384,6 +613,129 @@ export function DataPage() {
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
               {eventTable.getRowModel().rows.map(row => (
+                <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Cancellation Events Table */}
+      <Card title="Cancellation Events" className="mb-6">
+        <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              {cancellationTable.getHeaderGroups().map(headerGroup => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map(header => (
+                    <th
+                      key={header.id}
+                      className="px-6 py-3.5 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100/80 transition-colors"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      <div className="flex items-center gap-2">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getIsSorted() && (
+                          <span className="text-primary-600">
+                            {header.column.getIsSorted() === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-200">
+              {cancellationTable.getRowModel().rows.map(row => (
+                <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Payment Failure Events Table */}
+      <Card title="Payment Failure Events" className="mb-6">
+        <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              {paymentTable.getHeaderGroups().map(headerGroup => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map(header => (
+                    <th
+                      key={header.id}
+                      className="px-6 py-3.5 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100/80 transition-colors"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      <div className="flex items-center gap-2">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getIsSorted() && (
+                          <span className="text-primary-600">
+                            {header.column.getIsSorted() === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-200">
+              {paymentTable.getRowModel().rows.map(row => (
+                <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Pause Events Table */}
+      <Card title="Pause Events">
+        <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              {pauseTable.getHeaderGroups().map(headerGroup => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map(header => (
+                    <th
+                      key={header.id}
+                      className="px-6 py-3.5 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100/80 transition-colors"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      <div className="flex items-center gap-2">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getIsSorted() && (
+                          <span className="text-primary-600">
+                            {header.column.getIsSorted() === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-200">
+              {pauseTable.getRowModel().rows.map(row => (
                 <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
                   {row.getVisibleCells().map(cell => (
                     <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">

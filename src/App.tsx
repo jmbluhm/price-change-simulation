@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { TopNav } from './components/TopNav';
 import { DataPage } from './pages/DataPage';
 import { SimulatePage } from './pages/SimulatePage';
+import { ChurnSimulationPage } from './pages/ChurnSimulationPage';
 import { NotFound } from './pages/NotFound';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
           <Route path="/" element={<Navigate to="/simulate" replace />} />
           <Route path="/data" element={<DataPage />} />
           <Route path="/simulate" element={<SimulatePage />} />
+          <Route path="/churn" element={<ChurnSimulationPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

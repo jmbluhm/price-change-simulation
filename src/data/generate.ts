@@ -1,5 +1,5 @@
 import { SeededRNG, clamp } from '../lib/utils';
-import type { Dataset, Merchant, Plan, PriceChangeEvent, PlanInterval } from './types';
+import type { Dataset, Merchant, Plan, PriceChangeEvent, PlanInterval, CancellationEvent, PaymentFailureEvent, PauseEvent, InterventionType, IncentiveStrength } from './types';
 
 const VERTICAL = "Streaming Service" as const;
 
@@ -37,6 +37,9 @@ export function generateDataset(seed: number): Dataset {
   const merchants: Merchant[] = [];
   const plans: Plan[] = [];
   const events: PriceChangeEvent[] = [];
+  const cancellationEvents: CancellationEvent[] = [];
+  const paymentFailureEvents: PaymentFailureEvent[] = [];
+  const pauseEvents: PauseEvent[] = [];
 
   // Generate merchants
   const merchantIds: string[] = [];
@@ -86,6 +89,12 @@ export function generateDataset(seed: number): Dataset {
       // Baseline churn 90d: 2% - 10%
       const baselineChurn90d = clamp(rng.float(0.02, 0.10), 0, 0.35);
       
+      // Churn simulation baseline rates
+      const baselineCancelRate90d = clamp(rng.float(0.02, 0.08), 0, 0.15);
+      const paymentFailureRate90d = clamp(rng.float(0.01, 0.06), 0, 0.10);
+      const baselineDunningRecoveryRate = clamp(rng.float(0.30, 0.65), 0.20, 0.80);
+      const baselinePauseAdoptionRate = clamp(rng.float(0.02, 0.15), 0, 0.25);
+      
       // Addon ARPU: $0 - $5/month
       const arpuAddonsMonthly = Math.round(rng.float(0, 5) * 100) / 100;
       
@@ -104,6 +113,10 @@ export function generateDataset(seed: number): Dataset {
         baselineChurn90d,
         arpuAddonsMonthly,
         createdAt,
+        baselineCancelRate90d,
+        paymentFailureRate90d,
+        baselineDunningRecoveryRate,
+        baselinePauseAdoptionRate,
       };
       plans.push(plan);
     }
@@ -182,10 +195,144 @@ export function generateDataset(seed: number): Dataset {
   // Sort events by date (newest first)
   events.sort((a, b) => b.effectiveDate.getTime() - a.effectiveDate.getTime());
 
+  // Generate churn-related events for each plan
+  for (const plan of plans) {
+    // Generate cancellation events: 200-800 per plan
+    const numCancellationEvents = rng.int(200, 800);
+    for (let i = 0; i < numCancellationEvents; i++) {
+      const interventionTypes: InterventionType[] = ["none", "survey", "pause", "incentive"];
+      const interventionType = rng.choice(interventionTypes);
+      const incentiveStrengths: IncentiveStrength[] = ["none", "light", "medium", "heavy"];
+      const incentiveStrength = interventionType === "incentive" 
+        ? rng.choice(incentiveStrengths.filter(s => s !== "none"))
+        : "none";
+
+      // Base save rate varies by intervention type
+      let baseSaveRate = 0.05; // 5% baseline for "none"
+      if (interventionType === "survey") baseSaveRate = 0.08;
+      else if (interventionType === "pause") baseSaveRate = 0.10;
+      else if (interventionType === "incentive") {
+        if (incentiveStrength === "light") baseSaveRate = 0.12;
+        else if (incentiveStrength === "medium") baseSaveRate = 0.18;
+        else if (incentiveStrength === "heavy") baseSaveRate = 0.25;
+      }
+
+      // Add some noise
+      const saveRate = clamp(baseSaveRate + rng.float(-0.03, 0.03), 0.02, 0.35);
+      const outcome = rng.next() < saveRate ? "saved" : "canceled";
+
+      // Event date: within last 12 months
+      const daysAgo = rng.int(0, 365);
+      const eventDate = new Date(now);
+      eventDate.setDate(eventDate.getDate() - daysAgo);
+
+      let postEventLifetimeDays: number | undefined;
+      if (outcome === "saved") {
+        postEventLifetimeDays = rng.int(30, 365);
+      }
+
+      const cancellationEvent: CancellationEvent = {
+        id: `${plan.id}_cancel_${i + 1}`,
+        merchantId: plan.merchantId,
+        planId: plan.id,
+        eventDate,
+        interventionType,
+        incentiveStrength,
+        outcome,
+        postEventLifetimeDays,
+      };
+      cancellationEvents.push(cancellationEvent);
+    }
+
+    // Generate payment failure events: 150-600 per plan
+    const numPaymentEvents = rng.int(150, 600);
+    for (let i = 0; i < numPaymentEvents; i++) {
+      const retries = rng.int(3, 8);
+      const retryWindowDays = rng.int(7, 30);
+      const fallbackEnabled = rng.next() < 0.4; // 40% have fallback
+
+      // Recovery rate increases with retries, window, and fallback
+      let baseRecoveryRate = 0.30;
+      baseRecoveryRate += (retries - 3) * 0.05; // +5% per retry above 3
+      baseRecoveryRate += (retryWindowDays - 7) * 0.01; // +1% per day above 7
+      if (fallbackEnabled) baseRecoveryRate += 0.15;
+
+      const recoveryRate = clamp(baseRecoveryRate + rng.float(-0.10, 0.10), 0.20, 0.80);
+      const recovered = rng.next() < recoveryRate;
+
+      const daysAgo = rng.int(0, 365);
+      const eventDate = new Date(now);
+      eventDate.setDate(eventDate.getDate() - daysAgo);
+
+      let recoveryDays: number | undefined;
+      if (recovered) {
+        recoveryDays = rng.int(1, retryWindowDays);
+      }
+
+      const paymentEvent: PaymentFailureEvent = {
+        id: `${plan.id}_payment_${i + 1}`,
+        merchantId: plan.merchantId,
+        planId: plan.id,
+        eventDate,
+        retries,
+        retryWindowDays,
+        fallbackEnabled,
+        recovered,
+        recoveryDays,
+      };
+      paymentFailureEvents.push(paymentEvent);
+    }
+
+    // Generate pause events: 100-500 per plan
+    const numPauseEvents = rng.int(100, 500);
+    for (let i = 0; i < numPauseEvents; i++) {
+      const pauseEnabled = rng.next() < 0.7; // 70% have pause enabled
+      const pauseCycles = pauseEnabled ? rng.int(1, 6) : 0;
+
+      // Resume rate: 55-80% baseline, decreases slightly with more cycles
+      let resumeRate = rng.float(0.55, 0.80);
+      if (pauseCycles > 3) resumeRate -= 0.10;
+      resumeRate = clamp(resumeRate, 0.40, 0.85);
+
+      const resumed = pauseEnabled && rng.next() < resumeRate;
+
+      // If resumed, chance of churning within 90d
+      let churnedWithin90d: boolean | undefined;
+      if (resumed) {
+        const churnRate = rng.float(0.10, 0.25); // 10-25% churn after resume
+        churnedWithin90d = rng.next() < churnRate;
+      }
+
+      const daysAgo = rng.int(0, 365);
+      const eventDate = new Date(now);
+      eventDate.setDate(eventDate.getDate() - daysAgo);
+
+      const pauseEvent: PauseEvent = {
+        id: `${plan.id}_pause_${i + 1}`,
+        merchantId: plan.merchantId,
+        planId: plan.id,
+        eventDate,
+        pauseEnabled,
+        pauseCycles,
+        resumed,
+        churnedWithin90d,
+      };
+      pauseEvents.push(pauseEvent);
+    }
+  }
+
+  // Sort churn events by date (newest first)
+  cancellationEvents.sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
+  paymentFailureEvents.sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
+  pauseEvents.sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
+
   return {
     merchants,
     plans,
     events,
+    cancellationEvents,
+    paymentFailureEvents,
+    pauseEvents,
   };
 }
 

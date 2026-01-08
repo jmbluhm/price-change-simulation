@@ -28,7 +28,18 @@ export function TopNav() {
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
               )}
             >
-              Simulate
+              Price Simulation
+            </Link>
+            <Link
+              to="/churn"
+              className={clsx(
+                "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                location.pathname === '/churn'
+                  ? "bg-primary-50 text-primary-700 shadow-soft"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              )}
+            >
+              Churn Simulation
             </Link>
             <Link
               to="/data"

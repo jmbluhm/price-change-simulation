@@ -14,7 +14,7 @@ export function TopNav() {
                 <span className="text-white font-bold text-sm">PI</span>
               </div>
               <span className="text-xl font-semibold text-slate-900 tracking-tight">
-                Price Impact
+                Churn Reduction
               </span>
             </Link>
           </div>

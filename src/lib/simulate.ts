@@ -322,14 +322,19 @@ export function simulate(input: SimulationInput): SimulationResult {
 export interface PriceOptimizationDataPoint {
   price: number;
   arrImpact: number;
+  expectedChurn90d: number;
 }
 
 export interface PriceOptimizationResult {
   dataPoints: PriceOptimizationDataPoint[];
   optimalPrice: number;
   optimalARRImpact: number;
+  optimalChurnPrice: number;
+  optimalChurn90d: number;
+  optimalChurnARRImpact: number;
   currentPrice: number;
   currentARRImpact: number;
+  currentChurn90d: number;
 }
 
 /**
@@ -353,6 +358,7 @@ export function findOptimalPrice(
   }
 
   const currentPrice = plan.currentPriceMonthly;
+  const baselineARR = (plan.activeSubs * currentPrice + plan.activeSubs * plan.arpuAddonsMonthly) * 12;
   const minPrice = currentPrice * (1 + priceRange[0]);
   const maxPrice = currentPrice * (1 + priceRange[1]);
   const priceStep = (maxPrice - minPrice) / steps;
@@ -360,13 +366,22 @@ export function findOptimalPrice(
   const dataPoints: PriceOptimizationDataPoint[] = [];
   let optimalPrice = currentPrice;
   let optimalARRImpact = 0;
+  let optimalChurnPrice = currentPrice;
+  let optimalChurn90d = plan.baselineChurn90d;
+  let optimalChurnARRImpact = 0;
   let currentARRImpact = 0;
+  let currentChurn90d = plan.baselineChurn90d;
+
+  // Minimum price constraint: don't go below 50% of current price (to avoid free pricing)
+  const minAllowedPrice = currentPrice * 0.5;
+  // Maximum acceptable ARR loss for churn optimization: don't lose more than 10% of baseline ARR
+  const maxARRLoss = baselineARR * -0.10;
 
   // Run simulations across the price range
   for (let i = 0; i <= steps; i++) {
     const testPrice = minPrice + (priceStep * i);
-    // Skip negative or zero prices
-    if (testPrice <= 0) continue;
+    // Skip negative or zero prices, and prices below minimum allowed
+    if (testPrice <= 0 || testPrice < minAllowedPrice) continue;
 
     try {
       const result = simulate({
@@ -380,6 +395,7 @@ export function findOptimalPrice(
       dataPoints.push({
         price: testPrice,
         arrImpact,
+        expectedChurn90d: result.expectedChurn90d,
       });
 
       // Track optimal price (maximum ARR impact)
@@ -388,9 +404,25 @@ export function findOptimalPrice(
         optimalPrice = testPrice;
       }
 
+      // Track optimal churn price (minimum churn, but with constraints)
+      // Constraint 1: ARR impact must be >= maxARRLoss (don't lose too much revenue)
+      // Constraint 2: Price must be >= minAllowedPrice (avoid free pricing)
+      const meetsARRConstraint = arrImpact >= maxARRLoss;
+      const meetsPriceConstraint = testPrice >= minAllowedPrice;
+      
+      if (meetsARRConstraint && meetsPriceConstraint) {
+        // Within constraints, find minimum churn
+        if (result.expectedChurn90d < optimalChurn90d) {
+          optimalChurn90d = result.expectedChurn90d;
+          optimalChurnPrice = testPrice;
+          optimalChurnARRImpact = arrImpact;
+        }
+      }
+
       // Track current price impact
       if (Math.abs(testPrice - currentPrice) < priceStep / 2) {
         currentARRImpact = arrImpact;
+        currentChurn90d = result.expectedChurn90d;
       }
     } catch (error) {
       // Skip prices that cause simulation errors
@@ -408,12 +440,31 @@ export function findOptimalPrice(
         useGlobalBenchmarks,
       });
       currentARRImpact = currentResult.netARRDelta;
+      currentChurn90d = currentResult.expectedChurn90d;
     } catch (error) {
       // Use closest data point
       const closest = dataPoints.reduce((prev, curr) => 
         Math.abs(curr.price - currentPrice) < Math.abs(prev.price - currentPrice) ? curr : prev
       );
       currentARRImpact = closest.arrImpact;
+      currentChurn90d = closest.expectedChurn90d;
+    }
+  }
+
+  // If no churn-optimal price found within constraints, fall back to finding minimum churn
+  // within a reasonable price range (50% to 150% of current)
+  if (optimalChurnPrice === currentPrice && optimalChurn90d === plan.baselineChurn90d) {
+    const reasonableMinPrice = currentPrice * 0.5;
+    const reasonableMaxPrice = currentPrice * 1.5;
+    
+    for (const point of dataPoints) {
+      if (point.price >= reasonableMinPrice && point.price <= reasonableMaxPrice) {
+        if (point.expectedChurn90d < optimalChurn90d) {
+          optimalChurn90d = point.expectedChurn90d;
+          optimalChurnPrice = point.price;
+          optimalChurnARRImpact = point.arrImpact;
+        }
+      }
     }
   }
 
@@ -424,8 +475,12 @@ export function findOptimalPrice(
     dataPoints,
     optimalPrice,
     optimalARRImpact,
+    optimalChurnPrice,
+    optimalChurn90d,
+    optimalChurnARRImpact,
     currentPrice,
     currentARRImpact,
+    currentChurn90d,
   };
 }
 

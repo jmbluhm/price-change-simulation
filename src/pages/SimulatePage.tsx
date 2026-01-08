@@ -225,9 +225,9 @@ export function SimulatePage() {
       </Modal>
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">Price Impact Simulation</h1>
+        <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">Churn Reduction Simulator</h1>
         <p className="text-slate-600 text-lg">
-          Simulate the impact of price changes on ARR and churn
+          Simulate the impact of price changes on churn and find optimal pricing to reduce customer churn
         </p>
       </div>
 
@@ -379,26 +379,56 @@ export function SimulatePage() {
             </Card>
           )}
           {result && !isCalculatingOptimal && priceOptimization && priceOptimization.dataPoints.length > 0 && (
-            <Card title="Price Optimization">
-              <div className="mb-6 pt-2">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="text-sm text-slate-600 font-medium mb-1">Recommended Price</div>
-                    <div className="text-2xl font-bold text-emerald-700">
-                      {formatCurrency(priceOptimization.optimalPrice)}/mo
+            <Card title="Price Optimization for Churn Reduction">
+              <div className="mb-6 pt-2 space-y-4">
+                {/* Churn-Optimal Price */}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-200/60 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-xs text-slate-600 font-semibold uppercase tracking-wide mb-1">Optimal Price for Churn Reduction</div>
+                      <div className="text-2xl font-bold text-blue-700">
+                        {formatCurrency(priceOptimization.optimalChurnPrice)}/mo
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-slate-600 font-semibold uppercase tracking-wide mb-1">Expected Churn (90d)</div>
+                      <div className="text-2xl font-bold text-blue-700">
+                        {formatPercent(priceOptimization.optimalChurn90d)}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm text-slate-600 font-medium mb-1">Potential ARR Impact</div>
-                    <div className={`text-2xl font-bold ${priceOptimization.optimalARRImpact >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                      {formatCurrency(priceOptimization.optimalARRImpact)}
+                  <div className="text-sm text-slate-600 mt-2 pt-2 border-t border-blue-200/60">
+                    ARR Impact: {formatCurrency(priceOptimization.optimalChurnARRImpact)} / year
+                    {priceOptimization.optimalChurnPrice !== priceOptimization.currentPrice && (
+                      <span className="ml-2">
+                        (Current: {formatPercent(priceOptimization.currentChurn90d)} churn)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ARR-Optimal Price */}
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl border border-emerald-200/60 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-xs text-slate-600 font-semibold uppercase tracking-wide mb-1">Optimal Price for ARR Growth</div>
+                      <div className="text-2xl font-bold text-emerald-700">
+                        {formatCurrency(priceOptimization.optimalPrice)}/mo
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-slate-600 font-semibold uppercase tracking-wide mb-1">Potential ARR Impact</div>
+                      <div className={`text-2xl font-bold ${priceOptimization.optimalARRImpact >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {formatCurrency(priceOptimization.optimalARRImpact)}
+                      </div>
                     </div>
                   </div>
                 </div>
-                {priceOptimization.optimalPrice !== priceOptimization.currentPrice && (
-                  <div className="text-sm text-slate-600 mt-3 pt-2 border-t border-slate-200">
+
+                {priceOptimization.optimalChurnPrice !== priceOptimization.currentPrice && (
+                  <div className="text-sm text-slate-600 pt-2 border-t border-slate-200">
                     Current price: {formatCurrency(priceOptimization.currentPrice)}/mo 
-                    ({formatCurrency(priceOptimization.currentARRImpact)} ARR impact)
+                    ({formatPercent(priceOptimization.currentChurn90d)} churn, {formatCurrency(priceOptimization.currentARRImpact)} ARR impact)
                   </div>
                 )}
               </div>
@@ -416,13 +446,29 @@ export function SimulatePage() {
                     label={{ value: 'Plan Price', position: 'insideBottom', offset: -10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
                   />
                   <YAxis 
+                    yAxisId="arr"
                     tickFormatter={(value) => formatCurrency(value)} 
                     tick={{ fill: '#64748b', fontSize: 12 }}
                     axisLine={{ stroke: '#cbd5e1' }}
-                    label={{ value: 'Potential ARR Impact', angle: -90, position: 'left', offset: 10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+                    label={{ value: 'ARR Impact', angle: -90, position: 'left', offset: 10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+                  />
+                  <YAxis 
+                    yAxisId="churn"
+                    orientation="right"
+                    tickFormatter={(value) => formatPercent(value)} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    label={{ value: 'Expected Churn (90d)', angle: 90, position: 'right', offset: 10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
                   />
                   <Tooltip 
-                    formatter={(value: number | undefined) => value !== undefined ? formatCurrency(value) : ''}
+                    formatter={(value: any, name: any) => {
+                      if (name === 'arrImpact') {
+                        return [value !== undefined ? formatCurrency(value) : '', 'ARR Impact'];
+                      } else if (name === 'expectedChurn90d') {
+                        return [value !== undefined ? formatPercent(value) : '', 'Expected Churn'];
+                      }
+                      return '';
+                    }}
                     labelFormatter={(label) => `Price: ${formatCurrency(label)}`}
                     contentStyle={{ 
                       backgroundColor: 'white', 
@@ -432,13 +478,26 @@ export function SimulatePage() {
                     }}
                   />
                   <Line 
+                    yAxisId="arr"
                     type="monotone" 
                     dataKey="arrImpact" 
                     stroke="#3b82f6" 
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6, fill: '#3b82f6' }}
+                    name="ARR Impact"
                   />
+                  <Line 
+                    yAxisId="churn"
+                    type="monotone" 
+                    dataKey="expectedChurn90d" 
+                    stroke="#ef4444" 
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 6, fill: '#ef4444' }}
+                    name="Expected Churn"
+                  />
+                  <Legend />
                   {/* Current Price Reference Line */}
                   <ReferenceLine 
                     x={priceOptimization.currentPrice} 
@@ -446,26 +505,28 @@ export function SimulatePage() {
                     strokeDasharray="5 5"
                     label={{ value: "Current Price", position: "top", fill: "#64748b", fontSize: 11, offset: 10 }}
                   />
-                  {/* Optimal Price Reference Line */}
-                  {priceOptimization.optimalPrice !== priceOptimization.currentPrice && (
+                  {/* Churn-Optimal Price Reference Line */}
+                  {priceOptimization.optimalChurnPrice !== priceOptimization.currentPrice && (
+                    <ReferenceLine 
+                      x={priceOptimization.optimalChurnPrice} 
+                      stroke="#3b82f6" 
+                      strokeDasharray="5 5"
+                      label={{ value: "Churn-Optimal", position: "top", fill: "#3b82f6", fontSize: 11, fontWeight: "bold", offset: 10 }}
+                    />
+                  )}
+                  {/* ARR-Optimal Price Reference Line */}
+                  {priceOptimization.optimalPrice !== priceOptimization.currentPrice && priceOptimization.optimalPrice !== priceOptimization.optimalChurnPrice && (
                     <ReferenceLine 
                       x={priceOptimization.optimalPrice} 
                       stroke="#10b981" 
                       strokeDasharray="5 5"
-                      label={{ value: "Optimal Price", position: "top", fill: "#10b981", fontSize: 11, fontWeight: "bold", offset: 10 }}
+                      label={{ value: "ARR-Optimal", position: "top", fill: "#10b981", fontSize: 11, fontWeight: "bold", offset: 10 }}
                     />
                   )}
-                  {/* Current ARR Impact Reference Line */}
-                  <ReferenceLine 
-                    y={priceOptimization.currentARRImpact} 
-                    stroke="#64748b" 
-                    strokeDasharray="3 3"
-                    strokeOpacity={0.5}
-                  />
                 </LineChart>
               </ResponsiveContainer>
               <div className="mt-6 pt-4 text-xs text-slate-500 border-t border-slate-200">
-                This chart shows the estimated ARR impact across different price points. The optimal price maximizes ARR impact.
+                This chart shows ARR impact (blue) and expected churn (red) across different price points. The churn-optimal price minimizes churn while maintaining reasonable ARR (within 10% loss). The ARR-optimal price maximizes revenue growth.
               </div>
             </Card>
           )}
@@ -486,15 +547,15 @@ export function SimulatePage() {
             </Card>
           ) : (
             <>
-              {/* ARR Impact Card */}
-              <Card className={result.netARRDelta >= 0 ? "bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/60" : "bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60"}>
+              {/* Churn Impact Card - Primary Focus */}
+              <Card className={result.churnLift <= 0 ? "bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200/60" : "bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60"}>
                 <div className="text-center">
-                  <div className="text-sm text-slate-600 mb-2 font-semibold uppercase tracking-wide">Expected ARR Impact</div>
-                  <div className={`text-5xl font-bold mb-3 tracking-tight ${result.netARRDelta >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-                    {formatPercentChange(result.netARRDelta / (result.baselineMRR * 12))}
+                  <div className="text-sm text-slate-600 mb-2 font-semibold uppercase tracking-wide">Expected Churn Change (90d)</div>
+                  <div className={`text-5xl font-bold mb-3 tracking-tight ${result.churnLift <= 0 ? "text-blue-700" : "text-red-700"}`}>
+                    {formatPercentChange(result.churnLift)}
                   </div>
-                  <div className={`text-2xl font-semibold mb-4 ${result.netARRDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                    {formatCurrency(result.netARRDelta)} / year
+                  <div className="text-lg text-slate-600 mb-2">
+                    Baseline: {formatPercent(result.baselineChurn90d)} → Expected: {formatPercent(result.expectedChurn90d)}
                   </div>
                   <div className="flex items-center justify-center gap-2 mb-4">
                     <Badge variant={result.confidence === "High" ? "success" : result.confidence === "Med" ? "warning" : "danger"}>
@@ -504,6 +565,19 @@ export function SimulatePage() {
                       <Badge variant="warning">Heuristic</Badge>
                     )}
                   </div>
+                </div>
+              </Card>
+
+              {/* ARR Impact Card - Secondary */}
+              <Card className={result.netARRDelta >= 0 ? "bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/60" : "bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60"}>
+                <div className="text-center">
+                  <div className="text-sm text-slate-600 mb-2 font-semibold uppercase tracking-wide">Expected ARR Impact</div>
+                  <div className={`text-4xl font-bold mb-3 tracking-tight ${result.netARRDelta >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                    {formatPercentChange(result.netARRDelta / (result.baselineMRR * 12))}
+                  </div>
+                  <div className={`text-xl font-semibold mb-4 ${result.netARRDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    {formatCurrency(result.netARRDelta)} / year
+                  </div>
                   <div className="text-sm text-slate-600 font-medium">
                     Range: {formatCurrency(result.rangeLow)} to {formatCurrency(result.rangeHigh)}
                   </div>
@@ -511,7 +585,7 @@ export function SimulatePage() {
               </Card>
 
               {/* Waterfall Chart */}
-              <Card title="ARR Impact Breakdown">
+              <Card title="ARR Impact Breakdown (from Churn & Price Changes)">
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={waterfallData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -560,7 +634,7 @@ export function SimulatePage() {
               </Card>
 
               {/* Churn Comparison */}
-              <Card title="Churn Impact">
+              <Card title="Churn Impact Analysis">
                 <div className="mb-5 space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-slate-200/60">
                     <span className="text-sm text-slate-600 font-medium">Baseline Churn (90d)</span>
@@ -571,9 +645,15 @@ export function SimulatePage() {
                     <span className="font-semibold text-slate-900">{formatPercent(result.expectedChurn90d)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-slate-600 font-medium">Churn Lift</span>
+                    <span className="text-sm text-slate-600 font-medium">Churn Change</span>
                     <span className={`font-semibold ${result.churnLift >= 0 ? "text-red-600" : "text-emerald-600"}`}>
                       {formatPercentChange(result.churnLift)}
+                      {result.churnLift < 0 && (
+                        <span className="ml-2 text-emerald-600">(Reduction)</span>
+                      )}
+                      {result.churnLift > 0 && (
+                        <span className="ml-2 text-red-600">(Increase)</span>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -599,7 +679,7 @@ export function SimulatePage() {
                         boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.08)'
                       }}
                     />
-                    <Bar dataKey="churn" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="churn" fill={result.churnLift <= 0 ? "#3b82f6" : "#ef4444"} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Card>

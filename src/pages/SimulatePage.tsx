@@ -47,6 +47,7 @@ export function SimulatePage() {
           setPlanId(availablePlans[0].id);
           setNewPrice("");
           setResult(null);
+          setPriceOptimization(null);
         });
       }
       prevAvailablePlansRef.current = availablePlans;
@@ -54,34 +55,6 @@ export function SimulatePage() {
   }, [availablePlans, planId]);
 
   const selectedPlan = dataset.plans.find(p => p.id === planId);
-
-  // Calculate price optimization when plan is selected
-  useEffect(() => {
-    if (!planId || !selectedPlan) {
-      setPriceOptimization(null);
-      return;
-    }
-
-    setIsCalculatingOptimal(true);
-    // Use setTimeout to avoid blocking the UI
-    setTimeout(() => {
-      try {
-        const optimization = findOptimalPrice(
-          merchantId,
-          planId,
-          useGlobalBenchmarks,
-          [-0.5, 1.0], // Test prices from -50% to +100% of current (centered around current)
-          50 // 50 data points for smooth curve
-        );
-        setPriceOptimization(optimization);
-      } catch (error) {
-        console.error("Price optimization error:", error);
-        setPriceOptimization(null);
-      } finally {
-        setIsCalculatingOptimal(false);
-      }
-    }, 0);
-  }, [merchantId, planId, useGlobalBenchmarks, selectedPlan]);
 
   const runSimulation = () => {
     if (!planId || !newPrice || !selectedPlan) return;
@@ -100,6 +73,26 @@ export function SimulatePage() {
       if (acknowledgedExtreme || pendingRun) {
         setAcknowledgedExtreme(true);
       }
+
+      // Calculate price optimization after simulation runs
+      setIsCalculatingOptimal(true);
+      setTimeout(() => {
+        try {
+          const optimization = findOptimalPrice(
+            merchantId,
+            planId,
+            useGlobalBenchmarks,
+            [-0.5, 1.0], // Test prices from -50% to +100% of current (centered around current)
+            50 // 50 data points for smooth curve
+          );
+          setPriceOptimization(optimization);
+        } catch (error) {
+          console.error("Price optimization error:", error);
+          setPriceOptimization(null);
+        } finally {
+          setIsCalculatingOptimal(false);
+        }
+      }, 0);
     } catch (error) {
       console.error("Simulation error:", error);
     }
@@ -254,6 +247,7 @@ export function SimulatePage() {
                     setPlanId("");
                     setNewPrice("");
                     setResult(null);
+                    setPriceOptimization(null);
                     setAcknowledgedExtreme(false);
                   }}
                 >
@@ -275,6 +269,7 @@ export function SimulatePage() {
                     setPlanId(e.target.value);
                     setNewPrice("");
                     setResult(null);
+                    setPriceOptimization(null);
                     setAcknowledgedExtreme(false);
                   }}
                 >
@@ -295,6 +290,7 @@ export function SimulatePage() {
                     onChange={(e) => {
                       setUseGlobalBenchmarks(e.target.checked);
                       setResult(null);
+                      setPriceOptimization(null);
                       setAcknowledgedExtreme(false);
                     }}
                     className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 focus:ring-2"
@@ -352,6 +348,7 @@ export function SimulatePage() {
                   onChange={(e) => {
                     setNewPrice(e.target.value);
                     setResult(null);
+                    setPriceOptimization(null);
                     setAcknowledgedExtreme(false);
                   }}
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200 hover:border-slate-400 placeholder:text-slate-400"
@@ -372,8 +369,8 @@ export function SimulatePage() {
 
         {/* Right Panel - Results */}
         <div className="space-y-6">
-          {/* Price Optimization Chart - Always visible when plan is selected */}
-          {isCalculatingOptimal && (
+          {/* Price Optimization Chart - Only shown after simulation runs */}
+          {result && isCalculatingOptimal && (
             <Card title="Price Optimization">
               <div className="text-center py-8">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-2"></div>
@@ -381,25 +378,25 @@ export function SimulatePage() {
               </div>
             </Card>
           )}
-          {!isCalculatingOptimal && priceOptimization && priceOptimization.dataPoints.length > 0 && (
+          {result && !isCalculatingOptimal && priceOptimization && priceOptimization.dataPoints.length > 0 && (
             <Card title="Price Optimization">
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
+              <div className="mb-6 pt-2">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <div className="text-sm text-slate-600 font-medium">Recommended Price</div>
+                    <div className="text-sm text-slate-600 font-medium mb-1">Recommended Price</div>
                     <div className="text-2xl font-bold text-emerald-700">
                       {formatCurrency(priceOptimization.optimalPrice)}/mo
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-slate-600 font-medium">Potential ARR Impact</div>
+                    <div className="text-sm text-slate-600 font-medium mb-1">Potential ARR Impact</div>
                     <div className={`text-2xl font-bold ${priceOptimization.optimalARRImpact >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                       {formatCurrency(priceOptimization.optimalARRImpact)}
                     </div>
                   </div>
                 </div>
                 {priceOptimization.optimalPrice !== priceOptimization.currentPrice && (
-                  <div className="text-sm text-slate-600 mt-2">
+                  <div className="text-sm text-slate-600 mt-3 pt-2 border-t border-slate-200">
                     Current price: {formatCurrency(priceOptimization.currentPrice)}/mo 
                     ({formatCurrency(priceOptimization.currentARRImpact)} ARR impact)
                   </div>
@@ -408,7 +405,7 @@ export function SimulatePage() {
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart
                   data={priceOptimization.dataPoints}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                  margin={{ top: 40, right: 30, left: 20, bottom: 40 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
@@ -416,7 +413,7 @@ export function SimulatePage() {
                     tickFormatter={(value) => formatCurrency(value)}
                     tick={{ fill: '#64748b', fontSize: 12 }}
                     axisLine={{ stroke: '#cbd5e1' }}
-                    label={{ value: 'Plan Price', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+                    label={{ value: 'Plan Price', position: 'insideBottom', offset: -10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
                   />
                   <YAxis 
                     tickFormatter={(value) => formatCurrency(value)} 
@@ -447,7 +444,7 @@ export function SimulatePage() {
                     x={priceOptimization.currentPrice} 
                     stroke="#64748b" 
                     strokeDasharray="5 5"
-                    label={{ value: "Current Price", position: "top", fill: "#64748b", fontSize: 11 }}
+                    label={{ value: "Current Price", position: "top", fill: "#64748b", fontSize: 11, offset: 10 }}
                   />
                   {/* Optimal Price Reference Line */}
                   {priceOptimization.optimalPrice !== priceOptimization.currentPrice && (
@@ -455,7 +452,7 @@ export function SimulatePage() {
                       x={priceOptimization.optimalPrice} 
                       stroke="#10b981" 
                       strokeDasharray="5 5"
-                      label={{ value: "Optimal Price", position: "top", fill: "#10b981", fontSize: 11, fontWeight: "bold" }}
+                      label={{ value: "Optimal Price", position: "top", fill: "#10b981", fontSize: 11, fontWeight: "bold", offset: 10 }}
                     />
                   )}
                   {/* Current ARR Impact Reference Line */}
@@ -467,7 +464,7 @@ export function SimulatePage() {
                   />
                 </LineChart>
               </ResponsiveContainer>
-              <div className="mt-4 text-xs text-slate-500">
+              <div className="mt-6 pt-4 text-xs text-slate-500 border-t border-slate-200">
                 This chart shows the estimated ARR impact across different price points. The optimal price maximizes ARR impact.
               </div>
             </Card>

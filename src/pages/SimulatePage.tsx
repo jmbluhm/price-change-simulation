@@ -405,7 +405,7 @@ export function SimulatePage() {
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart
                   data={priceOptimization.dataPoints}
-                  margin={{ top: 40, right: 30, left: 20, bottom: 40 }}
+                  margin={{ top: 40, right: 30, left: 60, bottom: 40 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
@@ -419,7 +419,7 @@ export function SimulatePage() {
                     tickFormatter={(value) => formatCurrency(value)} 
                     tick={{ fill: '#64748b', fontSize: 12 }}
                     axisLine={{ stroke: '#cbd5e1' }}
-                    label={{ value: 'Potential ARR Impact', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+                    label={{ value: 'Potential ARR Impact', angle: -90, position: 'left', offset: 10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
                   />
                   <Tooltip 
                     formatter={(value: number | undefined) => value !== undefined ? formatCurrency(value) : ''}

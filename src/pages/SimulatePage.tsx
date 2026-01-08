@@ -10,6 +10,50 @@ import { Modal } from '../components/ui/Modal';
 import { formatCurrency, formatPercent, formatPercentChange, formatDate } from '../lib/utils';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
+// Custom Tooltip component for the optimization chart
+interface OptimizationTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    dataKey?: string;
+    value?: number;
+    color?: string;
+  }>;
+  label?: number;
+}
+
+const OptimizationTooltip = ({ active, payload, label }: OptimizationTooltipProps) => {
+  if (active && payload && payload.length > 0 && label !== undefined) {
+    const price = label;
+    const arrImpact = payload.find((p) => p.dataKey === 'arrImpact')?.value as number | undefined;
+    const expectedChurn = payload.find((p) => p.dataKey === 'expectedChurn90d')?.value as number | undefined;
+
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3">
+        <p className="font-semibold text-slate-900 mb-2">
+          Price: {formatCurrency(price)}
+        </p>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+            <span className="text-sm text-slate-600">ARR Impact:</span>
+            <span className="text-sm font-semibold text-slate-900">
+              {arrImpact !== undefined && arrImpact !== null ? formatCurrency(arrImpact) : '$0'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <span className="text-sm text-slate-600">Expected Churn:</span>
+            <span className="text-sm font-semibold text-slate-900">
+              {expectedChurn !== undefined && expectedChurn !== null ? formatPercent(expectedChurn) : '0%'}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 // Extreme price change thresholds
 const EXTREME_INCREASE_PCT = 0.50;   // +50% or more
 const EXTREME_DECREASE_PCT = -0.30;   // -30% or more decrease
@@ -435,7 +479,7 @@ export function SimulatePage() {
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart
                   data={priceOptimization.dataPoints}
-                  margin={{ top: 40, right: 30, left: 60, bottom: 40 }}
+                  margin={{ top: 40, right: 50, left: 60, bottom: 60 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
@@ -443,7 +487,7 @@ export function SimulatePage() {
                     tickFormatter={(value) => formatCurrency(value)}
                     tick={{ fill: '#64748b', fontSize: 12 }}
                     axisLine={{ stroke: '#cbd5e1' }}
-                    label={{ value: 'Plan Price', position: 'insideBottom', offset: -10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+                    label={{ value: 'Plan Price', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
                   />
                   <YAxis 
                     yAxisId="arr"
@@ -458,25 +502,9 @@ export function SimulatePage() {
                     tickFormatter={(value) => formatPercent(value)} 
                     tick={{ fill: '#64748b', fontSize: 12 }}
                     axisLine={{ stroke: '#cbd5e1' }}
-                    label={{ value: 'Expected Churn (90d)', angle: 90, position: 'right', offset: 10, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
+                    label={{ value: 'Expected Churn (90d)', angle: 90, position: 'right', offset: 15, style: { textAnchor: 'middle', fill: '#64748b', fontSize: 12 } }}
                   />
-                  <Tooltip 
-                    formatter={(value: any, name: any) => {
-                      if (name === 'arrImpact') {
-                        return [value !== undefined ? formatCurrency(value) : '', 'ARR Impact'];
-                      } else if (name === 'expectedChurn90d') {
-                        return [value !== undefined ? formatPercent(value) : '', 'Expected Churn'];
-                      }
-                      return '';
-                    }}
-                    labelFormatter={(label) => `Price: ${formatCurrency(label)}`}
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      border: '1px solid #e2e8f0', 
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.08)'
-                    }}
-                  />
+                  <Tooltip content={<OptimizationTooltip />} />
                   <Line 
                     yAxisId="arr"
                     type="monotone" 
@@ -497,7 +525,11 @@ export function SimulatePage() {
                     activeDot={{ r: 6, fill: '#ef4444' }}
                     name="Expected Churn"
                   />
-                  <Legend />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="line"
+                    formatter={(value) => <span style={{ marginLeft: '8px' }}>{value}</span>}
+                  />
                   {/* Current Price Reference Line */}
                   <ReferenceLine 
                     x={priceOptimization.currentPrice} 

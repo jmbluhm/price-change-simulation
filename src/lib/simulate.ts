@@ -319,3 +319,113 @@ export function simulate(input: SimulationInput): SimulationResult {
   };
 }
 
+export interface PriceOptimizationDataPoint {
+  price: number;
+  arrImpact: number;
+}
+
+export interface PriceOptimizationResult {
+  dataPoints: PriceOptimizationDataPoint[];
+  optimalPrice: number;
+  optimalARRImpact: number;
+  currentPrice: number;
+  currentARRImpact: number;
+}
+
+/**
+ * Find optimal price by running simulations across a range of prices
+ * @param merchantId - The merchant ID
+ * @param planId - The plan ID
+ * @param useGlobalBenchmarks - Whether to use global benchmarks
+ * @param priceRange - Range of prices to test (as multipliers of current price), default [-0.5, 1.0] (50% decrease to 100% increase)
+ * @param steps - Number of price points to test, default 50
+ */
+export function findOptimalPrice(
+  merchantId: string,
+  planId: string,
+  useGlobalBenchmarks: boolean,
+  priceRange: [number, number] = [-0.5, 1.0],
+  steps: number = 50
+): PriceOptimizationResult {
+  const plan = dataset.plans.find(p => p.id === planId);
+  if (!plan) {
+    throw new Error(`Plan not found: ${planId}`);
+  }
+
+  const currentPrice = plan.currentPriceMonthly;
+  const minPrice = currentPrice * (1 + priceRange[0]);
+  const maxPrice = currentPrice * (1 + priceRange[1]);
+  const priceStep = (maxPrice - minPrice) / steps;
+
+  const dataPoints: PriceOptimizationDataPoint[] = [];
+  let optimalPrice = currentPrice;
+  let optimalARRImpact = 0;
+  let currentARRImpact = 0;
+
+  // Run simulations across the price range
+  for (let i = 0; i <= steps; i++) {
+    const testPrice = minPrice + (priceStep * i);
+    // Skip negative or zero prices
+    if (testPrice <= 0) continue;
+
+    try {
+      const result = simulate({
+        merchantId,
+        planId,
+        newPriceMonthly: testPrice,
+        useGlobalBenchmarks,
+      });
+
+      const arrImpact = result.netARRDelta;
+      dataPoints.push({
+        price: testPrice,
+        arrImpact,
+      });
+
+      // Track optimal price (maximum ARR impact)
+      if (arrImpact > optimalARRImpact) {
+        optimalARRImpact = arrImpact;
+        optimalPrice = testPrice;
+      }
+
+      // Track current price impact
+      if (Math.abs(testPrice - currentPrice) < priceStep / 2) {
+        currentARRImpact = arrImpact;
+      }
+    } catch (error) {
+      // Skip prices that cause simulation errors
+      console.warn(`Simulation failed for price ${testPrice}:`, error);
+    }
+  }
+
+  // If we didn't find current price impact, run a simulation for it
+  if (currentARRImpact === 0 && dataPoints.length > 0) {
+    try {
+      const currentResult = simulate({
+        merchantId,
+        planId,
+        newPriceMonthly: currentPrice,
+        useGlobalBenchmarks,
+      });
+      currentARRImpact = currentResult.netARRDelta;
+    } catch (error) {
+      // Use closest data point
+      const closest = dataPoints.reduce((prev, curr) => 
+        Math.abs(curr.price - currentPrice) < Math.abs(prev.price - currentPrice) ? curr : prev
+      );
+      currentARRImpact = closest.arrImpact;
+    }
+  }
+
+  // Sort data points by price for smooth curve
+  dataPoints.sort((a, b) => a.price - b.price);
+
+  return {
+    dataPoints,
+    optimalPrice,
+    optimalARRImpact,
+    currentPrice,
+    currentARRImpact,
+  };
+}
+

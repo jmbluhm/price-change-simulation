@@ -3,8 +3,7 @@ import { dataset } from '../data/sampleData';
 import type { InterventionType, IncentiveStrength } from '../data/types';
 
 export interface ChurnSimulationInput {
-  scope: "merchant" | "global";
-  merchantId?: string;
+  merchantId: string;
   planId: string;
   leverA: {
     type: InterventionType;
@@ -32,6 +31,12 @@ export interface ChurnSimulationResult {
     comparableCancellationEvents: number;
     comparablePaymentEvents: number;
     comparablePauseEvents: number;
+    merchantCancellationEvents: number;
+    merchantPaymentEvents: number;
+    merchantPauseEvents: number;
+    globalCancellationEvents: number;
+    globalPaymentEvents: number;
+    globalPauseEvents: number;
   };
   rangeLow: number;
   rangeHigh: number;
@@ -44,27 +49,36 @@ export function simulateChurn(input: ChurnSimulationInput): ChurnSimulationResul
     throw new Error(`Plan not found: ${input.planId}`);
   }
 
-  // Filter events based on scope
-  let cancellationEvents = dataset.cancellationEvents.filter(e => {
-    if (input.scope === "merchant" && input.merchantId) {
-      return e.merchantId === input.merchantId && e.planId === input.planId;
-    }
-    return e.planId === input.planId;
-  });
+  // Always start with merchant-specific events (same plan)
+  let merchantCancellationEvents = dataset.cancellationEvents.filter(e => 
+    e.merchantId === input.merchantId && e.planId === input.planId
+  );
 
-  let paymentEvents = dataset.paymentFailureEvents.filter(e => {
-    if (input.scope === "merchant" && input.merchantId) {
-      return e.merchantId === input.merchantId && e.planId === input.planId;
-    }
-    return e.planId === input.planId;
-  });
+  let merchantPaymentEvents = dataset.paymentFailureEvents.filter(e => 
+    e.merchantId === input.merchantId && e.planId === input.planId
+  );
 
-  let pauseEvents = dataset.pauseEvents.filter(e => {
-    if (input.scope === "merchant" && input.merchantId) {
-      return e.merchantId === input.merchantId && e.planId === input.planId;
-    }
-    return e.planId === input.planId;
-  });
+  let merchantPauseEvents = dataset.pauseEvents.filter(e => 
+    e.merchantId === input.merchantId && e.planId === input.planId
+  );
+
+  // Always include global events (same plan, different merchant)
+  const globalCancellationEvents = dataset.cancellationEvents.filter(e => 
+    e.merchantId !== input.merchantId && e.planId === input.planId
+  );
+
+  const globalPaymentEvents = dataset.paymentFailureEvents.filter(e => 
+    e.merchantId !== input.merchantId && e.planId === input.planId
+  );
+
+  const globalPauseEvents = dataset.pauseEvents.filter(e => 
+    e.merchantId !== input.merchantId && e.planId === input.planId
+  );
+
+  // Combine merchant and global events (always use global data)
+  const cancellationEvents = [...merchantCancellationEvents, ...globalCancellationEvents];
+  const paymentEvents = [...merchantPaymentEvents, ...globalPaymentEvents];
+  const pauseEvents = [...merchantPauseEvents, ...globalPauseEvents];
 
   // Calculate baseline expectations
   const activeSubs = plan.activeSubs;
@@ -73,7 +87,17 @@ export function simulateChurn(input: ChurnSimulationInput): ChurnSimulationResul
   const expectedDunningLosses = expectedPaymentFailures * (1 - plan.baselineDunningRecoveryRate);
 
   // Lever A: Cancellation intervention lift
+  // Filter matching events from combined merchant + global pool
   const matchingCancellationEvents = cancellationEvents.filter(e => {
+    if (input.leverA.type === "incentive") {
+      return e.interventionType === input.leverA.type && 
+             e.incentiveStrength === input.leverA.incentiveStrength;
+    }
+    return e.interventionType === input.leverA.type;
+  });
+  
+  // Also get merchant-specific matching events for evidence
+  const matchingMerchantCancellationEvents = merchantCancellationEvents.filter(e => {
     if (input.leverA.type === "incentive") {
       return e.interventionType === input.leverA.type && 
              e.incentiveStrength === input.leverA.incentiveStrength;
@@ -97,6 +121,13 @@ export function simulateChurn(input: ChurnSimulationInput): ChurnSimulationResul
 
   // Lever B: Dunning lift
   const matchingPaymentEvents = paymentEvents.filter(e => {
+    return e.retries === input.leverB.retries &&
+           e.retryWindowDays === input.leverB.retryWindowDays &&
+           e.fallbackEnabled === input.leverB.fallbackEnabled;
+  });
+  
+  // Also get merchant-specific matching events for evidence
+  const matchingMerchantPaymentEvents = merchantPaymentEvents.filter(e => {
     return e.retries === input.leverB.retries &&
            e.retryWindowDays === input.leverB.retryWindowDays &&
            e.fallbackEnabled === input.leverB.fallbackEnabled;
@@ -170,12 +201,33 @@ export function simulateChurn(input: ChurnSimulationInput): ChurnSimulationResul
   const recoveredARR = recoveredMRR * 12;
 
   // Determine confidence based on comparable event counts
+  // Count includes both merchant and global events
   const comparableCancellationEvents = matchingCancellationEvents.length;
   const comparablePaymentEvents = matchingPaymentEvents.length;
-  const comparablePauseEvents = input.leverC.pauseEnabled 
-    ? pauseEvents.filter(e => e.pauseEnabled && e.pauseCycles <= input.leverC.maxPauseCycles).length
-    : 0;
+  
+  let comparablePauseEvents = 0;
+  let matchingMerchantPauseEvents: typeof pauseEvents = [];
+  if (input.leverC.pauseEnabled) {
+    const matchingPauseEvents = pauseEvents.filter(e => 
+      e.pauseEnabled && e.pauseCycles <= input.leverC.maxPauseCycles
+    );
+    comparablePauseEvents = matchingPauseEvents.length;
+    matchingMerchantPauseEvents = merchantPauseEvents.filter(e => 
+      e.pauseEnabled && e.pauseCycles <= input.leverC.maxPauseCycles
+    );
+  }
+  
   const totalComparableEvents = comparableCancellationEvents + comparablePaymentEvents + comparablePauseEvents;
+  
+  // Calculate merchant vs global event counts for evidence display
+  const merchantCancellationCount = matchingMerchantCancellationEvents.length;
+  const globalCancellationCount = comparableCancellationEvents - merchantCancellationCount;
+  
+  const merchantPaymentCount = matchingMerchantPaymentEvents.length;
+  const globalPaymentCount = comparablePaymentEvents - merchantPaymentCount;
+  
+  const merchantPauseCount = matchingMerchantPauseEvents.length;
+  const globalPauseCount = comparablePauseEvents - merchantPauseCount;
 
   let confidence: "High" | "Med" | "Low" = "Low";
   if (totalComparableEvents >= 100) {
@@ -233,6 +285,12 @@ export function simulateChurn(input: ChurnSimulationInput): ChurnSimulationResul
       comparableCancellationEvents,
       comparablePaymentEvents,
       comparablePauseEvents,
+      merchantCancellationEvents: merchantCancellationCount,
+      merchantPaymentEvents: merchantPaymentCount,
+      merchantPauseEvents: merchantPauseCount,
+      globalCancellationEvents: globalCancellationCount,
+      globalPaymentEvents: globalPaymentCount,
+      globalPauseEvents: globalPauseCount,
     },
     rangeLow,
     rangeHigh,

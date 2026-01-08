@@ -12,7 +12,6 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { InterventionType, IncentiveStrength } from '../data/types';
 
 export function ChurnSimulationPage() {
-  const [scope, setScope] = useState<"merchant" | "global">("merchant");
   const [merchantId, setMerchantId] = useState<string>(TEST_MERCHANT_ID);
   const [planId, setPlanId] = useState<string>("");
   
@@ -35,13 +34,10 @@ export function ChurnSimulationPage() {
   const [skipWarnings, setSkipWarnings] = useState(false);
   const [acknowledgedAggressive, setAcknowledgedAggressive] = useState(false);
 
-  // Get available plans
+  // Get available plans for selected merchant
   const availablePlans = useMemo(() => {
-    if (scope === "merchant") {
-      return dataset.plans.filter(p => p.merchantId === merchantId);
-    }
-    return dataset.plans;
-  }, [scope, merchantId]);
+    return dataset.plans.filter(p => p.merchantId === merchantId);
+  }, [merchantId]);
 
   // Track previous availablePlans to detect changes
   const prevAvailablePlansRef = useRef(availablePlans);
@@ -68,8 +64,7 @@ export function ChurnSimulationPage() {
 
     try {
       const simResult = simulateChurn({
-        scope,
-        merchantId: scope === "merchant" ? merchantId : undefined,
+        merchantId,
         planId,
         leverA: {
           type: interventionType,
@@ -196,41 +191,23 @@ export function ChurnSimulationPage() {
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2.5">
-                  Scope
+                  Merchant
                 </label>
                 <Select
-                  value={scope}
+                  value={merchantId}
                   onChange={(e) => {
-                    setScope(e.target.value as "merchant" | "global");
+                    setMerchantId(e.target.value);
+                    setPlanId("");
                     setResult(null);
                   }}
                 >
-                  <option value="merchant">Merchant</option>
-                  <option value="global">Global</option>
+                  {dataset.merchants.map(merchant => (
+                    <option key={merchant.id} value={merchant.id}>
+                      {merchant.name}
+                    </option>
+                  ))}
                 </Select>
               </div>
-
-              {scope === "merchant" && (
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2.5">
-                    Merchant
-                  </label>
-                  <Select
-                    value={merchantId}
-                    onChange={(e) => {
-                      setMerchantId(e.target.value);
-                      setPlanId("");
-                      setResult(null);
-                    }}
-                  >
-                    {dataset.merchants.map(merchant => (
-                      <option key={merchant.id} value={merchant.id}>
-                        {merchant.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2.5">
@@ -501,21 +478,32 @@ export function ChurnSimulationPage() {
               {/* Evidence Card */}
               <Card title="Evidence">
                 <div className="mb-4 text-sm text-slate-600 font-medium">
-                  Comparable event counts used in simulation
+                  Comparable event counts used in simulation (includes global data)
                 </div>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-slate-200/60">
                     <span className="text-sm text-slate-600 font-medium">Cancellation Events:</span>
                     <span className="font-semibold text-slate-900">{result.evidence.comparableCancellationEvents.toLocaleString()}</span>
                   </div>
+                  <div className="text-xs text-slate-500 pl-2 mb-2">
+                    (Merchant: {result.evidence.merchantCancellationEvents.toLocaleString()}, Global: {result.evidence.globalCancellationEvents.toLocaleString()})
+                  </div>
                   <div className="flex justify-between items-center py-2 border-b border-slate-200/60">
                     <span className="text-sm text-slate-600 font-medium">Payment Failure Events:</span>
                     <span className="font-semibold text-slate-900">{result.evidence.comparablePaymentEvents.toLocaleString()}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 pl-2 mb-2">
+                    (Merchant: {result.evidence.merchantPaymentEvents.toLocaleString()}, Global: {result.evidence.globalPaymentEvents.toLocaleString()})
                   </div>
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm text-slate-600 font-medium">Pause Events:</span>
                     <span className="font-semibold text-slate-900">{result.evidence.comparablePauseEvents.toLocaleString()}</span>
                   </div>
+                  {result.evidence.comparablePauseEvents > 0 && (
+                    <div className="text-xs text-slate-500 pl-2">
+                      (Merchant: {result.evidence.merchantPauseEvents.toLocaleString()}, Global: {result.evidence.globalPauseEvents.toLocaleString()})
+                    </div>
+                  )}
                 </div>
               </Card>
 
